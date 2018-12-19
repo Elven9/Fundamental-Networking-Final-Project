@@ -1,3 +1,4 @@
+// 忽略這個
 import Vue from 'vue'
 import Vuex from 'vuex'
 
