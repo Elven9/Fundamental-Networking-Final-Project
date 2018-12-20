@@ -1,6 +1,7 @@
 # web-project
+# 看我看我
 
-## Project setup
+## Project setup （ clone 下來先做這步就對了 ）
 ```
 npm install
 ```
@@ -13,16 +14,6 @@ npm run serve
 ### Compiles and minifies for production
 ```
 npm run build
-```
-
-### Run your tests
-```
-npm run test
-```
-
-### Lints and fixes files
-```
-npm run lint
 ```
 
 ### Customize configuration

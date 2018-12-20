@@ -40,7 +40,7 @@ export default {
       /**
        * 定時 call API ，更新資訊
        * 注意
-       * 1. setInterval
+       * 1. setInterval => 定時動作
        */
 
       setInterval(() => {
