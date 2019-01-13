@@ -13,11 +13,12 @@
             end-placeholder="End date"
             @change="updateDataAndMarker(selectedRange, false, true)">
           </el-date-picker>
-          <div id="time-diagram-container" v-loading="isLoadDiagram"><canvas id="time-diagram"></canvas></div>
+          <div v-loading="isLoadDiagram"><canvas id="time-diagram"></canvas></div>
           <el-table
             :data="distancesInfo"
             empty-text="暫無資料"
-            style="width: 100%">
+            style="width: 100%"
+            height="400">
             <el-table-column
               prop="destination_address"
               label="目的地"
@@ -70,7 +71,8 @@ export default {
       selectedRange: null,
       isLoadMap: false,
       isLoadDiagram: false,
-      distancesInfo: []
+      distancesInfo: [],
+      chart: null
     }
   },
   methods: {
@@ -136,8 +138,7 @@ export default {
     async drawTimeDiagram() {
       this.isLoadDiagram = true;
       // Data Process
-      let xData = []
-      let yData = []
+      let datum = [];
       let originalData = this._.shuffle(this._.cloneDeep(this.gpsDatum));
       this.distancesInfo = [];
       for (let i = 0; i < originalData.length; i += 2) {
@@ -145,8 +146,11 @@ export default {
 
         // Process Data
         let data = await this.$axios.get(encodeURI(`https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${originalData[i].lat},${originalData[i].lng}&destinations=${originalData[i+1].lat},${originalData[i+1].lng}&key=AIzaSyDXSltm-NZbSuE_VDkFylZWMgt_CxUKsgE`))
-        xData.push(data.data.rows[0].elements[0].distance.text);
-        yData.push(data.data.rows[0].elements[0].duration.value / 60);
+        datum.push({
+          xData: data.data.rows[0].elements[0].distance.text,
+          yData: data.data.rows[0].elements[0].duration.value / 60,
+          toCompare: data.data.rows[0].elements[0].distance.value
+        })
 
         // Parse data
         data.data.destination_address = data.data.destination_addresses[0];
@@ -160,21 +164,24 @@ export default {
         this.distancesInfo.push(data.data);
       }
 
-      // Create Canvas
-      let parentDiv = document.getElementById('time-diagram-container');
-      parentDiv.childNodes[0].remove();
-      parentDiv.appendChild(document.createElement('canvas'));
-      let canvas = parentDiv.childNodes[0];
-      canvas.setAttribute("id", "time-diagram");
-      var ctx = canvas.getContext("2d");
+      datum.sort((a, b) => {
+        if (a.toCompare < b.toCompare) return -1;
+        else if (a.toCompare > b.toCompare) return 1;
+        else return 0;
+      })
 
-      var timeDiagram = new Chart(ctx, {
+      // Create Canvas
+      let canvas = document.getElementById('time-diagram');
+      let ctx = canvas.getContext("2d");
+
+      if (this.chart) this.chart.destroy();
+      this.chart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: xData,
+          labels: datum.map(d => d.xData),
           datasets: [{
             label: '時間',
-            data: yData
+            data: datum.map(d => d.yData)
           }]
         },
         options: {
