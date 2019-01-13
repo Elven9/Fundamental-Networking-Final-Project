@@ -14,6 +14,7 @@
 }
 body {
   margin: 0;
+  background-color: rgb(51, 51, 51);
 }
 #nav {
   padding: 30px;

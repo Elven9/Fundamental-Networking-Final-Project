@@ -1,17 +1,30 @@
 <template>
   <div class="home">
+    <h1>機車防盜器 luluElvLouRayANto</h1>
     <div id="main-map" v-loading="isLoadMap"></div>
     <el-tabs type="border-card">
       <el-tab-pane>
         <span slot="label"><i class="el-icon-date"></i>地點紀錄</span>
         <div class="inner-tab">
+          <p>選取/新增使用中時間</p>
+          <el-date-picker
+            v-model="range"
+            type="datetimerange"
+            range-separator="To"
+            start-placeholder="Start date"
+            end-placeholder="End date"
+            @change="addSelectedRange(range)">
+          </el-date-picker>
+          <p v-for="t in selectedUsage" :key="t.id">{{ `${t.start.format("dddd, MMMM Do YYYY, h:mm:ss a")} ~ ${t.end.format("dddd, MMMM Do YYYY, h:mm:ss a")}` }}</p>
+          <el-button style="width:200px;margin-top:20px;margin-bottom:20px" @click="selectedUsage = []; range=null" type="primary" plain>清除時間紀錄</el-button>
+          <p>時間區間</p>
           <el-date-picker
             v-model="selectedRange"
             type="datetimerange"
             range-separator="To"
             start-placeholder="Start date"
             end-placeholder="End date"
-            @change="updateDataAndMarker(selectedRange, false, true)">
+            @change="updateDataAndMarker(selectedRange)">
           </el-date-picker>
           <!-- <div v-loading="isLoadDiagram"><canvas id="time-diagram"></canvas></div> -->
           <el-table
@@ -19,6 +32,16 @@
             empty-text="暫無資料"
             style="width: 100%"
             height="400">
+            <el-table-column
+              prop="isAuthorized"
+              label="使用狀態"
+              min-width="70">
+              <template slot-scope="scope">
+                <el-tag
+                  :type="!scope.row.isAuthorized? 'danger' : 'primary'"
+                  disable-transitions>{{scope.row.isAuthorized ? '正常' : '被偷'}}</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column
               prop="formatted_address"
               label="紀錄地點"
@@ -42,12 +65,12 @@
           </el-table>
         </div>
       </el-tab-pane>
-      <el-tab-pane>
+      <!-- <el-tab-pane>
         <span slot="label"><i class="el-icon-bell"></i>震動資料</span>
         <div class="inner-tab">
 
         </div>
-      </el-tab-pane>
+      </el-tab-pane> -->
     </el-tabs>
   </div>
 </template>
@@ -65,19 +88,16 @@ export default {
     return {
       map: null,
       markers: [],
-      gpsDatum: [],
-      vibrationDatum: [],
-      gpsDatum: [],
+      originalDatum: [],
       selectedRange: null,
       isLoadMap: false,
-      isLoadDiagram: false,
-      distancesInfo: []
-      // chart: null
+      distancesInfo: [],
+      range: null,
+      selectedUsage: []
     }
   },
   methods: {
-    async updateDataAndMarker(timeRange, toForceLoad=false, toLoadTimeDiagram=false) {
-      this.isLoadMap = true;
+    async updateDataAndMarker(timeRange, toForceLoad=false) {
       var data;
       try {
         if (timeRange) {
@@ -103,32 +123,27 @@ export default {
 
       // Update Data
       data.data.forEach(d => {
-        if (d.lat !== "" && d.lng !== "") this.gpsDatum.push(d)
-        else this.vibrationDatum.push(d)
+        this.originalDatum.push(d);
       })
 
-      // Update Map Markers
-      this.gpsDatum.forEach(d => {
-        this.addMarker({
-          lat: Number(d.lat),
-          lng: Number(d.lng)
-        })
+      this.drawTimeDiagram();
+    },
+    addSelectedRange(range) {
+      this.selectedUsage.push({
+        start: this.$moment(range[0]),
+        end: this.$moment(range[1])
       })
-
-      if (toLoadTimeDiagram) this.drawTimeDiagram();
-
-      this.isLoadMap = false;
     },
     addMarker(position) {
       const newMarker = new google.maps.Marker({
         position,
         map: this.map
       });
-      this.markers.push();
+      this.markers.push(newMarker);
     },
     clearMap() {
-      this.gpsDatum = [];
-      this.vibrationDatum = [];
+      console.log('fdsaf')
+      this.originalDatum = [];
       // Clear Map and datum
       this.markers.forEach(m => {
         m.setMap(null);
@@ -136,59 +151,70 @@ export default {
       this.markers = []
     },
     async drawTimeDiagram() {
-      this.isLoadDiagram = true;
-      // Data Process
-      // let datum = [];
-      // let originalData = this._.shuffle(this._.cloneDeep(this.gpsDatum));
+      this.isLoadMap = true;
       this.distancesInfo = [];
-      for (let i = 0; i < this.gpsDatum.length; i += 1) {
 
-        // Process Data
-        let data = await this.$axios.get(encodeURI(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${this.gpsDatum[i].lat},${this.gpsDatum[i].lng}&key=AIzaSyC2IVFgbupvZjOn_hWVsyc_lpvaj9clOfw`))
+      // Helper Function
+      let isInUsageTimeRange = (time) => {
+        for (let j = 0; j < this.selectedUsage.length; j++) {
+          const target = this.$moment(time);
+          if (target.isAfter(this.selectedUsage[j].start) && target.isBefore(this.selectedUsage[j].end)) {
+            return true;
+          }
+        }
+        return false;
+      }
 
-        data = data.data.results[0];
-        data.lat = data.geometry.location.lat;
-        data.lng = data.geometry.location.lng;
-        data.time = this.$moment(this.gpsDatum[i].created_at).format("dddd, MMMM Do YYYY, h:mm:ss a");
+      // Flag
+      let isAuthorized = true;
 
-        delete data.address_components;
-        delete data.geometry;
-        delete data.place_id;
-        delete data.types;
-
+      for (let i = 0; i < this.originalDatum.length; i += 1) {
+        let data;
+        // Check if data is generated by vibration.
+        if (this.originalDatum[i].lat === "") {
+          // Check if authorized
+          if (!isInUsageTimeRange(this.originalDatum[i].created_at)) {
+            // Not Authorized
+            isAuthorized = false;
+          } else {
+            isAuthorized = true;
+          }
+          // Create Payload
+          data = {
+            formatted_address: '(震動資料)',
+            lat: '/',
+            lng: '/',
+            time: this.$moment(this.originalDatum[i].created_at).format("dddd, MMMM Do YYYY, h:mm:ss a"),
+            isAuthorized: isAuthorized
+          }
+        } else {
+          // Get Data from google
+          let info = await this.$axios.get(encodeURI(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${this.originalDatum[i].lat},${this.originalDatum[i].lng}&key=AIzaSyC2IVFgbupvZjOn_hWVsyc_lpvaj9clOfw`))
+          if (!isAuthorized && isInUsageTimeRange(this.originalDatum[i].created_at)) {
+            // Not Authorized
+            isAuthorized = true;
+          }
+          // Add Marker
+          if (!isAuthorized) {
+            this.addMarker({
+              lat: Number(this.originalDatum[i].lat),
+              lng: Number(this.originalDatum[i].lng)
+            })
+          }
+          // Prepare Payload
+          data = {
+            formatted_address: info.data.results[0].formatted_address,
+            lat: info.data.results[0].geometry.location.lat,
+            lng: info.data.results[0].geometry.location.lng,
+            time: this.$moment(this.originalDatum[i].created_at).format("dddd, MMMM Do YYYY, h:mm:ss a"),
+            isAuthorized: isAuthorized
+          }
+        }
         // Parse data
         this.distancesInfo.push(data);
       }
 
-      // datum.sort((a, b) => {
-      //   if (a.toCompare < b.toCompare) return -1;
-      //   else if (a.toCompare > b.toCompare) return 1;
-      //   else return 0;
-      // })
-
-      // Create Canvas
-      // let canvas = document.getElementById('time-diagram');
-      // let ctx = canvas.getContext("2d");
-
-      // if (this.chart) this.chart.destroy();
-      // this.chart = new Chart(ctx, {
-      //   type: 'line',
-      //   data: {
-      //     labels: datum.map(d => d.xData),
-      //     datasets: [{
-      //       label: '時間',
-      //       data: datum.map(d => d.yData)
-      //     }]
-      //   },
-      //   options: {
-      //     title: {
-      //       display: true,
-      //       text: '距離-時間圖'
-      //     }
-      //   }
-      // });
-
-      this.isLoadDiagram = false;
+      this.isLoadMap = false;
     }
   },
   async mounted() {
@@ -213,6 +239,11 @@ export default {
   margin-top: 50px;
   margin-bottom: 30px;
 
+  h1 {
+    color: bisque;
+    font-weight: 500;
+  }
+
   #main-map {
     width: 100%;
     height: 500px;
@@ -224,6 +255,7 @@ export default {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    text-align: start;
 
     #time-diagram {
       width: 100%;
