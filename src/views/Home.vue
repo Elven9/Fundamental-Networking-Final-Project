@@ -3,7 +3,7 @@
     <div id="main-map" v-loading="isLoadMap"></div>
     <el-tabs type="border-card">
       <el-tab-pane>
-        <span slot="label"><i class="el-icon-date"></i>時間選擇</span>
+        <span slot="label"><i class="el-icon-date"></i>地點紀錄</span>
         <div class="inner-tab">
           <el-date-picker
             v-model="selectedRange"
@@ -20,23 +20,23 @@
             style="width: 100%"
             height="400">
             <el-table-column
-              prop="destination_address"
-              label="目的地"
+              prop="formatted_address"
+              label="紀錄地點"
               min-width="180">
             </el-table-column>
             <el-table-column
-              prop="original_address"
-              label="出發地"
+              prop="time"
+              label="時間"
               min-width="180">
             </el-table-column>
             <el-table-column
-              prop="distance"
-              label="距離"
+              prop="lat"
+              label="緯度"
               min-width="100">
             </el-table-column>
             <el-table-column
-              prop="duration"
-              label="時間"
+              prop="lng"
+              label="經度"
               min-width="100">
             </el-table-column>
           </el-table>
@@ -141,13 +141,23 @@ export default {
       // let datum = [];
       // let originalData = this._.shuffle(this._.cloneDeep(this.gpsDatum));
       this.distancesInfo = [];
-      for (let i = 0; i < originalData.length; i += 1) {
+      for (let i = 0; i < this.gpsDatum.length; i += 1) {
 
         // Process Data
-        let data = await this.$axios.get(encodeURI(`https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${originalData[i].lat},${originalData[i].lng}&destinations=${originalData[i+1].lat},${originalData[i+1].lng}&key=AIzaSyDXSltm-NZbSuE_VDkFylZWMgt_CxUKsgE`))
+        let data = await this.$axios.get(encodeURI(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${this.gpsDatum[i].lat},${this.gpsDatum[i].lng}&key=AIzaSyC2IVFgbupvZjOn_hWVsyc_lpvaj9clOfw`))
+
+        data = data.data.results[0];
+        data.lat = data.geometry.location.lat;
+        data.lng = data.geometry.location.lng;
+        data.time = this.$moment(this.gpsDatum[i].created_at).format("dddd, MMMM Do YYYY, h:mm:ss a");
+
+        delete data.address_components;
+        delete data.geometry;
+        delete data.place_id;
+        delete data.types;
 
         // Parse data
-        this.distancesInfo.push(data.data);
+        this.distancesInfo.push(data);
       }
 
       // datum.sort((a, b) => {
@@ -211,6 +221,9 @@ export default {
 
   .inner-tab {
     min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 
     #time-diagram {
       width: 100%;
