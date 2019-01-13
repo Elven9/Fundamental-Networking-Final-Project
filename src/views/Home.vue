@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <h1>機車防盜器 luluElvLouRayANto</h1>
+    <h1>機車防盜器 LULUElvLouRayANto</h1>
     <div id="main-map" v-loading="isLoadMap"></div>
     <el-tabs type="border-card">
       <el-tab-pane>
