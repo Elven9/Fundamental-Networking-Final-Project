@@ -13,7 +13,7 @@
             end-placeholder="End date"
             @change="updateDataAndMarker(selectedRange, false, true)">
           </el-date-picker>
-          <div v-loading="isLoadDiagram"><canvas id="time-diagram"></canvas></div>
+          <!-- <div v-loading="isLoadDiagram"><canvas id="time-diagram"></canvas></div> -->
           <el-table
             :data="distancesInfo"
             empty-text="暫無資料"
@@ -71,8 +71,8 @@ export default {
       selectedRange: null,
       isLoadMap: false,
       isLoadDiagram: false,
-      distancesInfo: [],
-      chart: null
+      distancesInfo: []
+      // chart: null
     }
   },
   methods: {
@@ -138,59 +138,45 @@ export default {
     async drawTimeDiagram() {
       this.isLoadDiagram = true;
       // Data Process
-      let datum = [];
-      let originalData = this._.shuffle(this._.cloneDeep(this.gpsDatum));
+      // let datum = [];
+      // let originalData = this._.shuffle(this._.cloneDeep(this.gpsDatum));
       this.distancesInfo = [];
-      for (let i = 0; i < originalData.length; i += 2) {
-        if (i+1 === originalData.length) break;
+      for (let i = 0; i < originalData.length; i += 1) {
 
         // Process Data
         let data = await this.$axios.get(encodeURI(`https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${originalData[i].lat},${originalData[i].lng}&destinations=${originalData[i+1].lat},${originalData[i+1].lng}&key=AIzaSyDXSltm-NZbSuE_VDkFylZWMgt_CxUKsgE`))
-        datum.push({
-          xData: data.data.rows[0].elements[0].distance.text,
-          yData: data.data.rows[0].elements[0].duration.value / 60,
-          toCompare: data.data.rows[0].elements[0].distance.value
-        })
 
         // Parse data
-        data.data.destination_address = data.data.destination_addresses[0];
-        data.data.original_address = data.data.origin_addresses[0];
-        data.data.distance = data.data.rows[0].elements[0].distance.text;
-        data.data.duration = data.data.rows[0].elements[0].duration.text;
-        delete data.data.rows;
-        delete data.data.destination_addresses;
-        delete data.data.origin_addresses;
-        delete data.data.status
         this.distancesInfo.push(data.data);
       }
 
-      datum.sort((a, b) => {
-        if (a.toCompare < b.toCompare) return -1;
-        else if (a.toCompare > b.toCompare) return 1;
-        else return 0;
-      })
+      // datum.sort((a, b) => {
+      //   if (a.toCompare < b.toCompare) return -1;
+      //   else if (a.toCompare > b.toCompare) return 1;
+      //   else return 0;
+      // })
 
       // Create Canvas
-      let canvas = document.getElementById('time-diagram');
-      let ctx = canvas.getContext("2d");
+      // let canvas = document.getElementById('time-diagram');
+      // let ctx = canvas.getContext("2d");
 
-      if (this.chart) this.chart.destroy();
-      this.chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: datum.map(d => d.xData),
-          datasets: [{
-            label: '時間',
-            data: datum.map(d => d.yData)
-          }]
-        },
-        options: {
-          title: {
-            display: true,
-            text: '距離-時間圖'
-          }
-        }
-      });
+      // if (this.chart) this.chart.destroy();
+      // this.chart = new Chart(ctx, {
+      //   type: 'line',
+      //   data: {
+      //     labels: datum.map(d => d.xData),
+      //     datasets: [{
+      //       label: '時間',
+      //       data: datum.map(d => d.yData)
+      //     }]
+      //   },
+      //   options: {
+      //     title: {
+      //       display: true,
+      //       text: '距離-時間圖'
+      //     }
+      //   }
+      // });
 
       this.isLoadDiagram = false;
     }
